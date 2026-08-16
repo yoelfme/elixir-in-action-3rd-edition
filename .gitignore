@@ -1,0 +1,30 @@
+# Compiled Elixir/Erlang artifacts
+*.beam
+/_build/
+/deps/
+/cover/
+/doc/
+/.fetch
+*.ez
+*.tar
+
+# Erlang VM crash dumps
+erl_crash.dump
+
+# Dialyzer
+*.plt
+*.plt.hash
+/priv/plts/
+
+# Mix
+/tmp/
+# /mix.lock
+
+# Editor / tooling
+.elixir_ls/
+.lexical/
+.cursor/
+
+# OS
+.DS_Store
+Thumbs.db
