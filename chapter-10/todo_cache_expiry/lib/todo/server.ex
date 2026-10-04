@@ -1,0 +1,71 @@
+defmodule Todo.Server do
+  use GenServer, restart: :temporary
+
+  @expiry_idle_timeout :timer.seconds(10)
+
+  def init(todo_list_name) do
+    # The commented out code, can also work but can block the main process from loading the todo list
+    # todo_list = Todo.Database.get(todo_list_name) || Todo.List.new()
+    # {:ok, {todo_list_name, todo_list}}
+    IO.puts("Starting to-do server for #{todo_list_name}.")
+    {:ok, {todo_list_name, nil}, {:continue, :init}}
+  end
+
+  def start_link(todo_list_name) do
+    GenServer.start_link(__MODULE__, todo_list_name, name: via_tuple(todo_list_name))
+  end
+
+  defp via_tuple(name) do
+    Todo.ProcessRegistry.via_tuple({__MODULE__, name})
+  end
+
+  def add_entry(pid, entry) do
+    GenServer.cast(pid, {:add_entry, entry})
+  end
+
+  def entries(pid, date) do
+    GenServer.call(pid, {:entries, date})
+  end
+
+  def update_entry(pid, entry_id, updater_fun) do
+    GenServer.cast(pid, {:update_entry, entry_id, updater_fun})
+  end
+
+  def delete_entry(pid, entry_id) do
+    GenServer.cast(pid, {:delete_entry, entry_id})
+  end
+
+  def handle_call({:entries, date}, _from, {todo_list_name, todo_list}) do
+    {:reply, Todo.List.entries(todo_list, date), {todo_list_name, todo_list}, @expiry_idle_timeout}
+  end
+
+  def handle_cast({:add_entry, entry}, {todo_list_name, todo_list}) do
+    new_list = Todo.List.add_entry(todo_list, entry)
+
+    Todo.Database.store(todo_list_name, new_list)
+
+    {:noreply, {todo_list_name, new_list}, @expiry_idle_timeout}
+  end
+
+  def handle_cast({:update_entry, entry_id, updater_fun}, {todo_list_name, todo_list}) do
+    {:noreply, {todo_list_name, Todo.List.update_entry(todo_list, entry_id, updater_fun)}, @expiry_idle_timeout}
+  end
+
+  def handle_cast({:delete_entry, entry_id}, {todo_list_name, todo_list}) do
+    {:noreply, {todo_list_name, Todo.List.delete_entry(todo_list, entry_id)}, @expiry_idle_timeout}
+  end
+
+  def handle_continue(:init, {todo_list_name, nil}) do
+    todo_list = Todo.Database.get(todo_list_name) || Todo.List.new()
+    {
+      :noreply,
+      {todo_list_name, todo_list},
+      @expiry_idle_timeout
+    }
+  end
+
+  def handle_info(:timeout, {todo_list_name, todo_list}) do
+    IO.puts("Stopping to-do server for #{todo_list_name}.")
+    {:stop, :normal, {todo_list_name, todo_list}}
+  end
+end
